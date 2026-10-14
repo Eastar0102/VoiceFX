@@ -1,0 +1,1506 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VoiceFX</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #161923;
+    --panel-2: #1d2130;
+    --line: #262b3b;
+    --text: #e8eaf2;
+    --muted: #8b91a7;
+    --accent: #7c5cff;
+    --accent-2: #22d3ee;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "Malgun Gothic", "Yu Gothic UI", "Microsoft YaHei UI", system-ui, sans-serif; font-size: 14px;
+    user-select: none; overflow: hidden; }
+  /* 일본어·중국어는 그 언어 글꼴을 먼저 (한국어 글꼴로 그리면 글자 간격이 어색하다) */
+  html:lang(ja) body { font-family: "Segoe UI", "Yu Gothic UI", "Meiryo UI", "Malgun Gothic", sans-serif; }
+  html:lang(zh) body { font-family: "Segoe UI", "Microsoft YaHei UI", "Malgun Gothic", sans-serif; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  input { font: inherit; }
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-thumb { background: #2a3044; border-radius: 10px; border: 3px solid var(--bg); }
+
+  .app { display: grid; grid-template-columns: 220px 1fr 300px; grid-template-rows: 1fr 84px; height: 100vh; }
+  .app.no-panel { grid-template-columns: 220px 1fr 0; }
+  .app.no-panel .panel { display: none; }
+
+  /* ---------- 사이드바 ---------- */
+  .sidebar { grid-row: 1; background: var(--panel); border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; padding: 20px 12px; gap: 4px; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 10px 22px; font-weight: 700; font-size: 18px; letter-spacing: .3px; }
+  .brand-mark { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .nav { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 10px;
+    border: 0; background: none; text-align: left; color: var(--muted); font-weight: 600; }
+  .nav:hover { background: var(--panel-2); color: var(--text); }
+  .nav.active { background: rgba(124, 92, 255, .16); color: var(--text); }
+  .nav.active svg { color: var(--accent); }
+  .nav .count { margin-left: auto; font-size: 11px; padding: 1px 7px; border-radius: 6px; background: var(--panel-2); color: var(--muted); }
+  .side-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 0 4px; }
+  .status-pill { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted);
+    padding: 10px 12px; border-radius: 10px; background: var(--panel-2); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .dot.bad { background: var(--bad); }
+  .power { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px; border-radius: 10px;
+    border: 1px solid var(--line); background: none; font-weight: 600; }
+  .power:hover { border-color: var(--accent); }
+  .power.on { background: var(--accent); border-color: var(--accent); }
+
+  /* ---------- 본문 ---------- */
+  main { grid-row: 1; overflow-y: auto; overflow-x: hidden; padding: 26px 30px 30px; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .header h1 { font-size: 24px; margin: 0; margin-right: auto; white-space: nowrap; }
+  .search { position: relative; }
+  .search input { width: 200px; padding: 10px 12px 10px 36px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--text); outline: none; }
+  .search input:focus { border-color: var(--accent); }
+  .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+
+  .chips { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; }
+  .chip { padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--muted); font-weight: 600; font-size: 13px; }
+  .chip:hover { color: var(--text); }
+  .chip.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+  .banner { display: none; align-items: center; gap: 12px; padding: 12px 16px; margin-bottom: 18px; border-radius: 12px;
+    background: rgba(251, 191, 36, .1); border: 1px solid rgba(251, 191, 36, .35); color: #fde68a; }
+  .banner.show { display: flex; }
+  .banner.error { background: rgba(248, 113, 113, .1); border-color: rgba(248, 113, 113, .35); color: #fecaca; }
+  .banner .msg { flex: 1; line-height: 1.45; }
+  .banner button { padding: 7px 12px; border-radius: 8px; border: 1px solid currentColor; background: none; white-space: nowrap; }
+
+  .group-title { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; font-size: 12px; font-weight: 700;
+    color: var(--muted); letter-spacing: .5px; }
+  .group-title .n { font-weight: 600; opacity: .7; }
+  .group-title.fav { color: var(--warn); }
+  .group + .group { margin-top: 26px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
+  .card { position: relative; aspect-ratio: 1 / 1.08; border-radius: var(--radius); padding: 16px; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: flex-end; text-align: left; border: 2px solid transparent;
+    background: var(--panel); transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease; }
+  .card::before { content: ""; position: absolute; inset: 0; opacity: .9;
+    background: radial-gradient(120% 90% at 50% 0%, var(--c) 0%, transparent 70%); }
+  .card:hover { transform: translateY(-3px); }
+  .card.selected { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(124, 92, 255, .25), 0 10px 30px rgba(0,0,0,.35); }
+  .card > * { position: relative; }
+  .card .icon { position: absolute; top: 22%; left: 50%; transform: translate(-50%, -20%); font-size: 52px;
+    filter: drop-shadow(0 6px 12px rgba(0,0,0,.35)); }
+  .card .name { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .desc { color: rgba(232, 234, 242, .65); font-size: 12px; margin-top: 3px; min-height: 16px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge-key { position: absolute; top: 12px; left: 12px; font-size: 10px; font-weight: 700; letter-spacing: .3px;
+    padding: 3px 7px; border-radius: 6px; background: rgba(0,0,0,.4); color: rgba(255,255,255,.85); max-width: calc(100% - 56px);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .live { position: absolute; top: 12px; left: 12px; display: none; align-items: center; gap: 5px; font-size: 10px; font-weight: 800;
+    padding: 3px 8px; border-radius: 6px; background: var(--accent); }
+  .card.selected .live { display: flex; }
+  .card.selected .badge-key { display: none; }
+  .card.selected.off .live { background: #4b5063; }
+  .star { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 8px; border: 0;
+    background: rgba(0,0,0,.25); color: rgba(255,255,255,.55); display: grid; place-items: center; opacity: 0; transition: opacity .12s; }
+  .card:hover .star, .pad:hover .star, .star.on { opacity: 1; }
+  .star:hover { color: #fff; }
+  .star.on { color: var(--warn); }
+  .empty { color: var(--muted); padding: 40px 0; text-align: center; grid-column: 1 / -1; }
+
+  /* ---------- 사운드보드 ---------- */
+  .sb-controls { display: flex; align-items: center; gap: 22px; padding: 12px 16px; margin-bottom: 18px; border-radius: 12px;
+    background: var(--panel); border: 1px solid var(--line); flex-wrap: wrap; }
+  .sb-controls .ctl { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+  .sb-controls input[type=range] { width: 140px; }
+  .sb-hint { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; margin: -6px 0 18px; border-radius: 10px;
+    background: rgba(34, 211, 238, .07); border: 1px solid rgba(34, 211, 238, .25); color: #a5f3fc; font-size: 12.5px; line-height: 1.55; }
+  .sb-hint b { color: #e0fbff; }
+  .pad { position: relative; aspect-ratio: 1 / 0.8; border-radius: var(--radius); padding: 14px; overflow: hidden; text-align: left;
+    display: flex; flex-direction: column; justify-content: flex-end; border: 2px solid transparent; background: var(--panel);
+    transition: transform .12s, border-color .12s; }
+  .pad::before { content: ""; position: absolute; inset: 0; background: linear-gradient(160deg, var(--c) 0%, transparent 75%); opacity: .55; }
+  .pad > .name, .pad > .meta { position: relative; }
+  .pad:hover { transform: translateY(-2px); }
+  .pad.selected { border-color: rgba(255,255,255,.35); }
+  .pad.playing { border-color: var(--accent-2); box-shadow: 0 0 0 4px rgba(34, 211, 238, .2); }
+  .pad .play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -70%); width: 44px; height: 44px; border-radius: 50%;
+    display: grid; place-items: center; background: rgba(0,0,0,.35); }
+  .pad.playing .play { background: var(--accent-2); color: #06222a; }
+  .pad .name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pad .meta { color: rgba(232,234,242,.6); font-size: 11px; margin-top: 2px; }
+  .pad .prog { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent-2); }
+  .pad.add { border: 2px dashed #353b50; background: none; align-items: center; justify-content: center; text-align: center; color: var(--muted); gap: 6px; }
+  .pad.add::before { display: none; }
+  .pad.add:hover { border-color: var(--accent); color: var(--text); }
+  .pad.add b { font-size: 28px; font-weight: 400; line-height: 1; }
+  .dropzone { border: 2px dashed #353b50; border-radius: 16px; padding: 56px 20px; text-align: center; color: var(--muted); line-height: 1.8; }
+  .dropzone b { color: var(--text); font-size: 16px; display: block; margin-bottom: 4px; }
+  .dropzone button { margin-top: 14px; }
+  .drop-overlay { position: fixed; inset: 0; z-index: 50; display: none; place-items: center; background: rgba(15, 17, 23, .82);
+    border: 3px dashed var(--accent); pointer-events: none; font-size: 18px; font-weight: 700; }
+  .drop-overlay.show { display: grid; }
+
+  /* ---------- 설정 ---------- */
+  .section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 20px; margin-bottom: 18px; }
+  .section h2 { font-size: 13px; color: var(--muted); font-weight: 700; margin: 14px 0 6px; letter-spacing: .6px; }
+  .row { display: flex; align-items: center; gap: 16px; padding: 13px 0; border-top: 1px solid var(--line); }
+  .section h2 + .row { border-top: 0; }
+  .row .label { flex: 1; }
+  .row .label small { display: block; color: var(--muted); margin-top: 3px; font-size: 12px; }
+  select { width: 340px; padding: 9px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2);
+    color: var(--text); font: inherit; outline: none; }
+  select:focus { border-color: var(--accent); }
+  input[type=range] { width: 260px; accent-color: var(--accent); }
+  .val { width: 44px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .btn { padding: 9px 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2); font-weight: 600; white-space: nowrap; }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); }
+  .btn.danger { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+  .btn.danger:hover { background: var(--bad); border-color: var(--bad); }
+  .btn.danger.confirm { background: #ef4444; border-color: #fecaca; }
+  .guide { margin: 6px 0 14px; padding-left: 20px; color: var(--muted); line-height: 1.9; }
+  .guide b { color: var(--text); }
+  .note { color: var(--muted); font-size: 12px; padding: 0 0 14px; }
+
+  /* 단축키 입력 버튼 */
+  .hk { min-width: 130px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2);
+    font-size: 12px; font-weight: 700; letter-spacing: .3px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+  .hk.empty { color: var(--muted); font-weight: 600; border-style: dashed; }
+  .hk:hover { border-color: var(--accent); }
+  .hk.capturing { border-color: var(--accent-2); color: var(--accent-2); box-shadow: 0 0 0 3px rgba(34, 211, 238, .2); animation: pulse 1.2s infinite; }
+  .hk .x { opacity: .5; font-weight: 400; }
+  .hk .x:hover { opacity: 1; color: var(--bad); }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(34, 211, 238, .08); } }
+
+  /* ---------- 키보드 맵 ---------- */
+  .km-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 14px; }
+  .km-head .chip { padding: 6px 12px; font-size: 12px; display: inline-flex; gap: 6px; align-items: center; }
+  .km-head .chip i { font-style: normal; font-size: 10px; padding: 0 6px; border-radius: 6px; background: var(--accent); color: #fff; }
+  .km-head .chip.active i { background: var(--bg); color: var(--text); }
+  .keyboard { --u: clamp(24px, calc((100vw - 440px) / 19.4), 46px); display: flex; gap: calc(var(--u) * .5);
+    padding: 14px; border-radius: 12px; background: #0c0e14; border: 1px solid var(--line); width: max-content; max-width: 100%; overflow-x: auto; }
+  .kb-block { display: flex; flex-direction: column; gap: 4px; }
+  .kb-row { display: flex; gap: 4px; height: var(--u); }
+  .kb-row.spacer { height: calc(var(--u) * .35); }
+  .key { position: relative; width: calc(var(--u) * var(--w, 1) + 4px * (var(--w, 1) - 1)); height: 100%; border-radius: 6px; border: 1px solid #2c3246;
+    background: #1b1f2c; color: #c9cee0; font-size: calc(var(--u) * .27); font-weight: 600; padding: 3px 5px; text-align: left;
+    display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; box-shadow: 0 2px 0 #0a0c12; }
+  .key.gap { visibility: hidden; }
+  .key:not(.dis):not(.gap):hover { border-color: var(--accent-2); transform: translateY(-1px); }
+  .key .kl { line-height: 1; white-space: nowrap; }
+  .key .ka { font-size: calc(var(--u) * .22); font-weight: 600; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+  .key.dis { opacity: .28; cursor: not-allowed; }
+  .key.fixed { background: #151821; color: #5d6378; cursor: default; box-shadow: none; }
+  .key.modon { background: #2a2440; border-color: var(--accent); color: #fff; opacity: 1; }
+  .key.used { background: linear-gradient(160deg, #7c5cff, #5b3fd6); border-color: #a28bff; color: #fff; }
+  .key.warn { background: #3a2f12; border-color: #8a6d1d; color: #fde68a; }
+  .key.used.warn { background: linear-gradient(160deg, #7c5cff, #5b3fd6); border-color: var(--warn); }
+  .kb-extra { margin-top: 12px; }
+  .kb-extra small { display: block; color: var(--muted); font-size: 11px; margin-bottom: 6px; }
+  .legend { display: flex; gap: 16px; margin: 12px 0 4px; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend b { width: 14px; height: 14px; border-radius: 4px; border: 1px solid #2c3246; background: #1b1f2c; }
+  .legend b.used { background: #7c5cff; border-color: #a28bff; }
+  .legend b.warn { background: #3a2f12; border-color: #8a6d1d; }
+  .legend b.dis { opacity: .28; }
+  .hk-list { margin: 14px 0 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+  .hk-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; background: var(--panel-2); border: 1px solid var(--line); font-size: 13px; }
+  .hk-item .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hk-item kbd { font-family: inherit; font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 6px; background: #2c3246; white-space: nowrap; }
+  .hk-item button { border: 0; background: none; color: var(--muted); padding: 2px 4px; }
+  .hk-item button:hover { color: var(--bad); }
+  .kpop { position: fixed; z-index: 70; width: 280px; max-height: 380px; display: flex; flex-direction: column; border-radius: 12px;
+    background: #20253a; border: 1px solid #39405a; box-shadow: 0 16px 40px rgba(0,0,0,.5); font-size: 13px; overflow: hidden; }
+  .kpop .top { padding: 12px 14px; border-bottom: 1px solid #39405a; }
+  .kpop .top b { font-size: 14px; }
+  .kpop .top .wn { color: var(--warn); font-size: 12px; margin-top: 6px; }
+  .kpop .top .cur { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--muted); }
+  .kpop .top .cur span { flex: 1; color: var(--text); }
+  .kpop .top .cur button { padding: 4px 10px; border-radius: 7px; border: 1px solid #4a5170; background: none; font-size: 12px; }
+  .kpop .top .cur button:hover { border-color: var(--bad); color: var(--bad); }
+  .kpop .list { overflow-y: auto; padding: 6px; }
+  .kpop .grp { font-size: 11px; color: var(--muted); padding: 8px 8px 4px; font-weight: 700; }
+  .kpop .it { width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 0; border-radius: 7px; background: none; text-align: left; }
+  .kpop .it:hover { background: rgba(124, 92, 255, .25); }
+  .kpop .it.on { background: rgba(124, 92, 255, .4); }
+  .kpop .it small { margin-left: auto; color: var(--muted); font-size: 11px; }
+
+  /* ---------- 내 목소리 편집기 ---------- */
+  button.p-icon { border: 0; cursor: default; color: inherit; }
+  button.p-icon.editable { cursor: pointer; position: relative; }
+  button.p-icon.editable::after { content: "✎"; position: absolute; right: -4px; bottom: -4px; width: 24px; height: 24px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 12px; background: var(--accent); color: #fff; }
+  .swatches { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+  .swatches button { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
+  .swatches button.on { border-color: #fff; }
+  .mod-card { border: 1px solid var(--line); border-radius: 10px; padding: 4px 12px 6px; margin-bottom: 10px; background: var(--panel-2); }
+  .mod-head { display: flex; align-items: center; gap: 8px; padding: 8px 0 2px; font-size: 13px; font-weight: 700; }
+  .mod-head small { color: var(--muted); font-weight: 400; font-size: 11px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mod-head button { border: 0; background: none; color: var(--muted); padding: 2px 6px; border-radius: 6px; }
+  .mod-head button:hover { color: var(--bad); background: rgba(248, 113, 113, .1); }
+  .mod-card .param { padding: 8px 0 4px; }
+  .fx-add { margin: 6px 0 4px; }
+  .fx-add b { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .fx-add .chips-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .fx-add button { padding: 6px 10px; border-radius: 999px; border: 1px dashed #4a5170; background: none; font-size: 12px; color: var(--text); }
+  .fx-add button:hover { border-style: solid; border-color: var(--accent); background: rgba(124, 92, 255, .15); }
+  .icon-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; padding: 8px; }
+  .icon-grid button { border: 0; background: none; font-size: 20px; padding: 4px; border-radius: 6px; }
+  .icon-grid button:hover { background: rgba(124, 92, 255, .3); }
+  .card.add { border: 2px dashed #353b50; background: none; align-items: center; justify-content: center; text-align: center; color: var(--muted); gap: 6px; }
+  .card.add::before { display: none; }
+  .card.add:hover { border-color: var(--accent); color: var(--text); }
+  .card.add b { font-size: 34px; font-weight: 300; line-height: 1; }
+  .card .mine { position: absolute; top: 14px; right: 44px; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 5px; background: rgba(255,255,255,.15); }
+
+  /* 토글 스위치 */
+  .switch { position: relative; width: 44px; height: 24px; flex: none; }
+  .switch input { display: none; }
+  .switch span { position: absolute; inset: 0; border-radius: 999px; background: #353b50; transition: background .15s; cursor: pointer; }
+  .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .switch input:checked + span { background: var(--accent); }
+  .switch input:checked + span::after { transform: translateX(20px); }
+
+  /* ---------- 오른쪽 패널 ---------- */
+  .panel { grid-row: 1; grid-column: 3; background: var(--panel); border-left: 1px solid var(--line);
+    overflow-y: auto; padding: 24px 22px; display: flex; flex-direction: column; }
+  .panel > div { display: none; flex-direction: column; flex: 1; }
+  .panel > div.active { display: flex; }
+  .p-head { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .p-head .star { opacity: 1; top: -6px; right: -6px; background: var(--panel-2); }
+  .p-icon { width: 92px; height: 92px; border-radius: 24px; display: grid; place-items: center; font-size: 52px;
+    background: radial-gradient(circle at 50% 25%, var(--c, #475569), #1d2130 80%); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .p-head h3 { margin: 6px 0 0; font-size: 20px; }
+  .p-head p { margin: 0; color: var(--muted); font-size: 12px; }
+  .p-off { display: none; margin-top: 4px; font-size: 11px; color: var(--warn); }
+  .p-off.show { display: block; }
+  .p-title { display: flex; align-items: center; margin: 20px 0 6px; }
+  .p-title b { font-size: 12px; color: var(--muted); letter-spacing: .6px; }
+  .p-title button { margin-left: auto; border: 0; background: none; color: var(--muted); font-size: 12px; padding: 4px 6px; border-radius: 6px; }
+  .p-title button:hover { color: var(--text); background: var(--panel-2); }
+  .p-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; font-size: 13px; }
+  .p-row .hk { min-width: 0; flex: 1; max-width: 170px; }
+  .p-row > span:first-child { white-space: nowrap; }
+  .param { padding: 12px 0 8px; }
+  .param .pl { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px; }
+  .param .pl span { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .param .pl span.changed { color: var(--accent-2); }
+  .param input[type=range] { width: 100%; height: 6px; -webkit-appearance: none; appearance: none; border-radius: 6px; outline: none;
+    background: linear-gradient(90deg, var(--accent) var(--p, 50%), #2c3246 var(--p, 50%)); }
+  .param input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.5); cursor: pointer; }
+  .p-name { width: 100%; text-align: center; font-size: 18px; font-weight: 700; padding: 6px 8px; margin-top: 6px; border-radius: 8px;
+    border: 1px solid transparent; background: none; color: var(--text); outline: none; }
+  .p-name:hover { border-color: var(--line); }
+  .p-name:focus { border-color: var(--accent); background: var(--panel-2); }
+  .p-actions { display: flex; gap: 8px; margin-top: 16px; }
+  /* 패널을 스크롤해도 하단 버튼(복제·삭제)은 항상 보이게 */
+  .p-actions.sticky { position: sticky; bottom: -24px; margin: 16px -22px -24px; padding: 12px 22px 16px; z-index: 2;
+    background: var(--panel); border-top: 1px solid var(--line); }
+  .p-actions.sticky:empty { display: none; }
+  .p-actions .btn { flex: 1; }
+  .p-tip { margin-top: auto; padding-top: 16px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+  .p-empty { margin: auto; text-align: center; color: var(--muted); line-height: 1.7; }
+
+  /* ---------- 하단 바 ---------- */
+  .bottombar { grid-column: 1 / -1; grid-row: 2; background: var(--panel); border-top: 1px solid var(--line);
+    display: grid; grid-template-columns: 240px 1fr 300px; align-items: center; padding: 0 22px; gap: 20px; }
+  .now { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .now .badge { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; font-size: 26px; flex: none;
+    background: radial-gradient(circle at 50% 30%, var(--c, #475569), #1d2130 80%); }
+  .now .t { min-width: 0; }
+  .now .t small { color: var(--muted); font-size: 11px; display: block; }
+  .now .t b { font-size: 15px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .toggles { display: flex; justify-content: center; gap: 12px; }
+  .tog { display: flex; align-items: center; gap: 12px; padding: 9px 14px 9px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); }
+  .tog .tl { line-height: 1.2; }
+  .tog .tl b { display: block; font-size: 13px; }
+  .tog .tl small { color: var(--muted); font-size: 11px; }
+  .mic { display: flex; flex-direction: column; gap: 7px; }
+  .mic .top { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; min-width: 0; }
+  .mic .top span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meter { height: 6px; border-radius: 6px; background: #262b3b; overflow: hidden; position: relative; }
+  .meter i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 6px;
+    background: linear-gradient(90deg, var(--ok), var(--warn) 75%, var(--bad)); transition: width .08s linear; }
+
+  /* ---------- 알림 ---------- */
+  .toasts { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 60; align-items: center; }
+  .toast { padding: 10px 16px; border-radius: 10px; background: #2a3044; border: 1px solid #39405a; box-shadow: 0 10px 30px rgba(0,0,0,.4);
+    font-size: 13px; max-width: 520px; animation: tin .15s ease; }
+  .toast.error { background: #3a1f25; border-color: #6b2b36; color: #fecaca; }
+  @keyframes tin { from { opacity: 0; transform: translateY(6px); } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>
+      </div>
+      VoiceFX
+    </div>
+    <button class="nav active" data-page="voices">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>
+      목소리
+    </button>
+    <button class="nav" data-page="soundboard">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+      사운드보드 <span class="count" id="soundCount">0</span>
+    </button>
+    <button class="nav" data-page="settings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+      설정
+    </button>
+    <div class="side-bottom">
+      <div class="status-pill"><span class="dot" id="statusDot"></span><span id="statusText">준비 중…</span></div>
+      <div id="versionText" style="text-align:center; font-size:11px; color:var(--muted)"></div>
+      <button class="power" id="powerBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v9M6.4 6.4a8 8 0 1 0 11.2 0"/></svg>
+        <span id="powerText">켜기</span>
+      </button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="banner" id="banner">
+      <div class="msg" id="bannerMsg"></div>
+      <button id="bannerAction"></button>
+      <button id="bannerRetry">다시 시도</button>
+    </div>
+
+    <!-- 목소리 -->
+    <section class="page active" id="page-voices">
+      <div class="header">
+        <h1>목소리</h1>
+        <label class="search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="voiceSearch" placeholder="목소리 검색">
+        </label>
+      </div>
+      <div class="chips" id="chips"></div>
+      <div id="voiceList"></div>
+    </section>
+
+    <!-- 사운드보드 -->
+    <section class="page" id="page-soundboard">
+      <div class="header">
+        <h1>사운드보드</h1>
+        <label class="search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="soundSearch" placeholder="사운드 검색">
+        </label>
+        <button class="btn" id="stopAllBtn">■ 모두 정지</button>
+        <button class="btn primary" id="addSoundBtn">＋ 사운드 추가</button>
+      </div>
+      <div class="sb-controls">
+        <div class="ctl">사운드 볼륨 <input type="range" id="opt-soundboard_volume" min="0" max="1.5" step="0.05"><span class="val" data-for="soundboard_volume"></span></div>
+        <div class="ctl">내 귀로도 듣기 <label class="switch"><input type="checkbox" id="opt-sound_monitor"><span></span></label></div>
+        <div class="ctl">모두 정지 단축키 <span data-hotkey="sound:stop_all"></span></div>
+        <button class="btn" id="restoreDefaultsBtn" style="margin-left:auto" title="지웠던 기본 효과음을 다시 추가합니다">기본 사운드 복원</button>
+      </div>
+      <div class="sb-hint">
+        <span>ℹ️</span>
+        <span data-i18n-html>다른 사람에게 사운드가 안 들리면 Discord <b>사용자 설정 → 음성 및 비디오 → 소음 억제(음성 격리)</b>를 <b>없음</b>으로 바꾸세요.
+        Discord 소음 억제가 효과음을 잡음으로 보고 지워버립니다. 대신 VoiceFX <b>설정 → 소음 억제</b>를 켜두면 마이크 잡음만 지우고 사운드는 그대로 보냅니다.
+        눌러서 말하기를 쓰는 경우 재생 중에 말하기 키를 누르고 있어야 합니다.</span>
+      </div>
+      <div id="soundList"></div>
+    </section>
+
+    <!-- 설정 -->
+    <section class="page" id="page-settings">
+      <div class="header"><h1>설정</h1></div>
+
+      <div class="section">
+        <h2>장치</h2>
+        <div class="row"><div class="label">마이크<small>실제로 말하는 마이크</small></div><select id="sel-input"></select></div>
+        <div class="row"><div class="label">가상 케이블 출력<small>보통 "CABLE Input (VB-Audio Virtual Cable)"</small></div><select id="sel-output"></select></div>
+        <div class="row"><div class="label">내 귀 출력<small>헤드폰 / 스피커 — 내 목소리 듣기와 사운드보드 소리</small></div><select id="sel-monitor"></select></div>
+        <div class="row"><div class="label">장치 목록 새로고침<small>헤드셋을 새로 꽂았을 때</small></div><button class="btn" id="refreshBtn">새로고침</button></div>
+      </div>
+
+      <div class="section">
+        <h2>동작</h2>
+        <div class="row"><div class="label">VB-CABLE 자동 켜기<small>꺼져 있는 가상 케이블을 실행할 때 켜고, 끄면 원래대로 꺼둡니다</small></div>
+          <label class="switch"><input type="checkbox" id="opt-auto_cable"><span></span></label></div>
+        <div class="row"><div class="label">Windows 기본 마이크 자동 전환<small>실행 중에는 CABLE Output을 기본 마이크로 바꾸고, 끄면 원래대로 돌려놓습니다</small></div>
+          <label class="switch"><input type="checkbox" id="opt-auto_default"><span></span></label></div>
+        <div class="row"><div class="label">소음 억제 (VoiceFX)<small>마이크의 키보드·팬·생활 소음을 지웁니다. 사운드보드 소리에는 적용되지 않으므로 Discord 소음 억제 대신 쓰세요</small></div>
+          <label class="switch"><input type="checkbox" id="opt-noise_suppression"><span></span></label></div>
+        <div class="row"><div class="label">소음 억제 강도<small>낮추면 잡음이 조금 남는 대신 목소리가 더 자연스럽습니다</small></div>
+          <input type="range" id="opt-ns_strength" min="0" max="1" step="0.05"><span class="val" data-for="ns_strength"></span></div>
+        <div class="row"><div class="label">노이즈 게이트<small>말하지 않을 때 작은 잡음을 차단합니다</small></div>
+          <label class="switch"><input type="checkbox" id="opt-gate"><span></span></label></div>
+      </div>
+
+      <div class="section">
+        <h2>화면</h2>
+        <div class="row"><div class="label">언어<small>Language · 言語 · 语言</small></div><select id="opt-language"></select></div>
+        <div class="row"><div class="label">즐겨찾기를 맨 위에 모아 보기<small>목소리와 사운드보드에서 ★ 표시한 항목을 상단에 따로 보여줍니다</small></div>
+          <label class="switch"><input type="checkbox" id="opt-favorites_on_top"><span></span></label></div>
+      </div>
+
+      <div class="section">
+        <h2>볼륨</h2>
+        <div class="row"><div class="label">마이크 입력</div><input type="range" id="opt-input_gain" min="0" max="4" step="0.05"><span class="val" data-for="input_gain"></span></div>
+        <div class="row"><div class="label">출력 (상대방이 듣는 내 목소리 크기)</div><input type="range" id="opt-output_volume" min="0" max="2" step="0.05"><span class="val" data-for="output_volume"></span></div>
+        <div class="row"><div class="label">내 귀 출력</div><input type="range" id="opt-monitor_volume" min="0" max="1.5" step="0.05"><span class="val" data-for="monitor_volume"></span></div>
+      </div>
+
+      <div class="section">
+        <h2>단축키</h2>
+        <div class="row"><div class="label">목소리 변조 켜기/끄기</div><span data-hotkey="toggle:voice"></span></div>
+        <div class="row"><div class="label">내 목소리 듣기 켜기/끄기</div><span data-hotkey="toggle:monitor"></span></div>
+        <div class="row"><div class="label">사운드 모두 정지</div><span data-hotkey="sound:stop_all"></span></div>
+        <div class="note">목소리·사운드별 단축키는 항목을 선택한 뒤 오른쪽 패널에서 지정하거나, 아래 키보드에서 키를 눌러 지정할 수 있습니다.</div>
+      </div>
+
+      <div class="section">
+        <h2>단축키 맵</h2>
+        <div class="km-head" id="kmMods"></div>
+        <div class="keyboard" id="keyboard"></div>
+        <div class="legend">
+          <span><b class="used"></b>사용 중</span>
+          <span><b></b>비어 있음 (클릭해서 지정)</span>
+          <span><b class="warn"></b>주의: Windows·Discord 단축키와 겹침</span>
+          <span><b class="dis"></b>사용 불가 (글자·숫자 키는 수정키와 함께)</span>
+        </div>
+        <h2>지정된 단축키 <span id="hkCount" style="opacity:.7"></span></h2>
+        <div class="hk-list" id="hkList"></div>
+      </div>
+
+      <div class="section">
+        <h2>Discord 설정 안내</h2>
+        <ol class="guide">
+          <li data-i18n-html>사용자 설정 → 음성 및 비디오 → 입력 장치를 <b>Default</b>로 둡니다 (자동 전환이 꺼져 있으면 <b>CABLE Output</b> 선택)</li>
+          <li data-i18n-html><b>소음 억제(음성 격리)</b>를 <b>없음</b>으로 끕니다 — 켜두면 로봇·무전기 같은 효과와 사운드보드 소리를 잡음으로 지워버립니다. 잡음 제거는 위의 <b>VoiceFX 소음 억제</b>가 대신합니다</li>
+          <li data-i18n-html><b>에코 제거</b>, <b>자동 게인 조절</b>도 끄면 효과가 더 깔끔하게 전달됩니다</li>
+        </ol>
+      </div>
+    </section>
+  </main>
+
+  <aside class="panel">
+    <!-- 목소리 세부 설정 -->
+    <div id="voicePanel" class="active">
+      <div class="p-head">
+        <span class="star" id="pvStar" title="즐겨찾기"></span>
+        <button class="p-icon" id="pvIcon" title="">🎙️</button>
+        <h3 id="pvName">-</h3>
+        <input class="p-name" id="pvNameInput" maxlength="30" spellcheck="false" title="클릭해서 이름 바꾸기" style="display:none">
+        <div class="swatches" id="pvColors" style="display:none"></div>
+        <p id="pvDesc"></p>
+        <div class="p-off" id="pvOff">목소리 변조가 꺼져 있어 지금은 원본 목소리가 나갑니다</div>
+      </div>
+      <div class="p-row"><span>단축키</span><span id="pvHotkey"></span></div>
+      <div class="p-title"><b id="pvParamsTitle">세부 설정</b><button id="pvReset" title="이 목소리의 모든 값을 기본값으로">↺ 기본값으로</button></div>
+      <div id="pvParams"></div>
+      <div class="p-actions sticky" id="pvActions"></div>
+      <div class="p-tip" id="pvTip"></div>
+    </div>
+    <!-- 사운드 설정 -->
+    <div id="soundPanel">
+      <div class="p-empty" id="psEmpty">사운드를 선택하면<br>이름·볼륨·단축키를 바꿀 수 있습니다</div>
+      <div id="psBody" style="display:none; flex-direction:column; flex:1">
+        <div class="p-head">
+          <span class="star" id="psStar" title="즐겨찾기"></span>
+          <div class="p-icon" id="psIcon">🔊</div>
+          <input class="p-name" id="psName" maxlength="40" spellcheck="false" title="클릭해서 이름 바꾸기">
+          <p id="psMeta"></p>
+        </div>
+        <div class="p-row"><span>단축키</span><span id="psHotkey"></span></div>
+        <div class="param">
+          <div class="pl"><b>볼륨</b><span id="psVolVal"></span></div>
+          <input type="range" id="psVol" min="0" max="2" step="0.05">
+        </div>
+        <div class="p-actions">
+          <button class="btn" id="psPlay">▶ 재생</button>
+          <button class="btn danger" id="psDelete">🗑 삭제</button>
+        </div>
+        <div class="p-tip">사운드는 목소리 효과를 거치지 않고 상대방에게 그대로 전달됩니다.<br>타일을 클릭하면 재생, 한 번 더 클릭하면 정지합니다.</div>
+      </div>
+    </div>
+  </aside>
+
+  <footer class="bottombar">
+    <div class="now">
+      <div class="badge" id="nowBadge">🎙️</div>
+      <div class="t"><small>현재 목소리</small><b id="nowName">-</b></div>
+    </div>
+    <div class="toggles">
+      <div class="tog">
+        <div class="tl"><b>목소리 변조</b><small data-hotkey-hint="toggle:voice"></small></div>
+        <label class="switch"><input type="checkbox" id="tg-voice"><span></span></label>
+      </div>
+      <div class="tog">
+        <div class="tl"><b>내 목소리 듣기</b><small data-hotkey-hint="toggle:monitor"></small></div>
+        <label class="switch"><input type="checkbox" id="tg-monitor"><span></span></label>
+      </div>
+    </div>
+    <div class="mic">
+      <div class="top">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>
+        <span id="micName">-</span>
+      </div>
+      <div class="meter"><i id="meterIn"></i></div>
+    </div>
+  </footer>
+</div>
+<div class="drop-overlay" id="dropOverlay">여기에 놓으면 사운드보드에 추가됩니다</div>
+<div class="toasts" id="toasts"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const api = () => window.pywebview.api;
+
+// ---------- 다국어 ----------
+// 원문(한국어) → 번역 표는 Python(voicefx/locales/*.json)에서 받는다. 화면에 들어오는 글자는 자동으로 바꾸고,
+// 숫자·이름이 끼는 문장만 T("... {n} ...", {n})로 직접 번역한다.
+let I18N = {};
+const HANGUL = /[\uAC00-\uD7A3]/;
+function T(s, vars) {
+  let r = I18N[s] || s;
+  if (vars) r = r.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
+  return r;
+}
+function translateText(node) {
+  const raw = node.nodeValue, key = raw.trim();
+  if (key && HANGUL.test(key) && I18N[key]) node.nodeValue = raw.replace(key, I18N[key]);
+}
+function translateAttrs(el) {
+  for (const a of ["title", "placeholder"]) {
+    const v = el.getAttribute && el.getAttribute(a);
+    if (v && I18N[v.trim()]) el.setAttribute(a, I18N[v.trim()]);
+  }
+}
+function translateTree(root) {
+  if (root.nodeType === 3) return translateText(root);
+  if (root.nodeType !== 1) return;
+  translateAttrs(root);
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) n.nodeType === 3 ? translateText(n) : translateAttrs(n);
+}
+function startTranslation(lang) {
+  document.documentElement.lang = lang;
+  if (lang === "ko") return;
+  document.querySelectorAll("[data-i18n-html]").forEach(el => {
+    const key = el.innerHTML.replace(/\s+/g, " ").trim();
+    if (I18N[key]) el.innerHTML = I18N[key];
+  });
+  translateTree(document.body);
+  new MutationObserver(muts => {
+    for (const m of muts) {
+      if (m.type === "characterData") translateText(m.target);
+      else if (m.type === "attributes") translateAttrs(m.target);
+      else m.addedNodes.forEach(translateTree);
+    }
+  }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["title", "placeholder"] });
+}
+function fillLanguages(info, current) {
+  const sel = $("#opt-language");
+  sel.innerHTML = `<option value="auto">${esc(T("자동 (Windows 언어)"))}</option>` +
+    Object.entries(info.languages).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+  sel.value = current || "auto";
+  sel.onchange = async () => { await api().set_option("language", sel.value); location.reload(); };
+}
+const ui = { presets: [], sounds: [], settings: { hotkeys: {}, favorites: [] }, category: "전체",
+             voiceQuery: "", soundQuery: "", page: "voices", selectedSound: null, playing: {} };
+const CATEGORIES = ["전체", "기본", "캐릭터", "효과", "내 목소리"];
+const ICONS = "🎛️🎤🎙️🗣️🤖👾👽👻💀🎃🤡👹😈🦹🧙🧛🧟🥷🎅👶👩👨🐱🐶🐸🐵🦊🐲🦄🐙🐿️🐻🦇🔥⚡🌈🌊🫧🎵🎧📻📢🎺🥁🚀🛸⭐💎👑🍄".match(/\p{Extended_Pictographic}️?/gu);
+const COLORS = ["#7c5cff", "#3b82f6", "#0ea5e9", "#14b8a6", "#22c55e", "#84cc16", "#eab308", "#f97316", "#ef4444", "#ec4899", "#a855f7", "#64748b"];
+const STAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>';
+const PLAY = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+const STOP = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+const SOUND_COLORS = ["#7c5cff", "#22d3ee", "#f59e0b", "#ef4444", "#22c55e", "#ec4899", "#3b82f6", "#a3e635"];
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+window.addEventListener("pywebviewready", async () => {
+  const d = await api().init();
+  I18N = d.i18n.strings || {};
+  startTranslation(d.i18n.lang);
+  fillLanguages(d.i18n, d.settings.language);
+  ui.presets = d.presets;
+  ui.modules = d.modules;
+  $("#versionText").textContent = "VoiceFX v" + d.version;
+  ui.sounds = d.sounds;
+  fillDevices(d);
+  applyState(d);
+  renderChips();
+  renderVoices();
+  renderSounds();
+  setInterval(poll, 90);
+});
+
+// ---------- 알림 ----------
+function toast(msg, isError = false) {
+  const t = document.createElement("div");
+  t.className = "toast" + (isError ? " error" : "");
+  t.textContent = msg;
+  $("#toasts").append(t);
+  setTimeout(() => t.remove(), isError ? 5000 : 3000);
+}
+
+// ---------- 네비게이션 ----------
+document.querySelectorAll(".nav[data-page]").forEach(b => b.addEventListener("click", () => {
+  ui.page = b.dataset.page;
+  document.querySelectorAll(".nav").forEach(n => n.classList.toggle("active", n === b));
+  document.querySelectorAll(".page").forEach(p => p.classList.toggle("active", p.id === "page-" + ui.page));
+  document.querySelector(".app").classList.toggle("no-panel", ui.page === "settings");
+  $("#voicePanel").classList.toggle("active", ui.page === "voices");
+  $("#soundPanel").classList.toggle("active", ui.page === "soundboard");
+  if (ui.page === "settings") renderKeymap();
+}));
+
+// ---------- 단축키 ----------
+const KEY_NAMES = {
+  Space: "space", Insert: "insert", Delete: "delete", Home: "home", End: "end", PageUp: "page up", PageDown: "page down",
+  ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Minus: "-", Equal: "=",
+  BracketLeft: "[", BracketRight: "]", Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/",
+  Backquote: "`", Backslash: "\\", Pause: "pause", ScrollLock: "scroll lock",
+};
+const STANDALONE_OK = /^(f\d+|pause|scroll lock|insert)$/;  // 수정키 없이도 허용 (글자 키는 타이핑과 겹치므로 불가)
+const MOD_NAMES = { ctrl: "Ctrl", alt: "Alt", shift: "Shift", windows: "Win" };
+
+function keyName(code) {
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3).toLowerCase();
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  if (/^F\d{1,2}$/.test(code)) return code.toLowerCase();
+  return KEY_NAMES[code] || null;
+}
+
+function prettyCombo(combo) {
+  return combo.split("+").map(k => MOD_NAMES[k] || (k.length === 1 ? k.toUpperCase() : k.replace(/\b\w/g, c => c.toUpperCase()))).join(" + ");
+}
+
+function actionLabel(action) {
+  const [kind, arg] = [action.split(":")[0], action.slice(action.indexOf(":") + 1)];
+  if (action === "toggle:voice") return "목소리 변조 켜기/끄기";
+  if (action === "toggle:monitor") return "내 목소리 듣기 켜기/끄기";
+  if (action === "sound:stop_all") return "사운드 모두 정지";
+  if (kind === "voice") return T("목소리 '{name}'", { name: (ui.presets.find(p => p.key === arg) || {}).name });
+  if (kind === "sound") return T("사운드 '{name}'", { name: (ui.sounds.find(s => s.id === arg) || {}).name });
+  return action;
+}
+
+let capture = null;  // { action, el }
+function hotkeyButton(action) {
+  const b = document.createElement("button");
+  b.className = "hk";
+  b.dataset.action = action;
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (e.target.classList.contains("x")) { saveHotkey(action, null); return; }
+    startCapture(action, b);
+  });
+  paintHotkey(b);
+  return b;
+}
+
+function paintHotkey(b) {
+  if (capture && capture.el === b) return;
+  const combo = ui.settings.hotkeys[b.dataset.action];
+  b.classList.remove("capturing");
+  b.classList.toggle("empty", !combo);
+  b.innerHTML = combo ? `${esc(prettyCombo(combo))} <span class="x" title="단축키 지우기">✕</span>` : "＋ 단축키 지정";
+}
+
+function refreshHotkeys() {
+  document.querySelectorAll(".hk").forEach(paintHotkey);
+  document.querySelectorAll("[data-hotkey-hint]").forEach(el => {
+    const combo = ui.settings.hotkeys[el.dataset.hotkeyHint];
+    el.textContent = combo ? prettyCombo(combo) : "단축키 없음";
+  });
+  renderVoices();
+  renderSounds();
+  renderKeymap();
+}
+
+// ---------- 단축키 맵 ----------
+const KM_MODS = [[], ["ctrl"], ["alt"], ["shift"], ["ctrl", "alt"], ["ctrl", "shift"], ["alt", "shift"], ["ctrl", "alt", "shift"]];
+// 수정키를 눌렀을 때 Windows·Discord가 이미 쓰는 조합 → 지정은 되지만 경고
+const RESERVED = {
+  "ctrl+c": "복사", "ctrl+v": "붙여넣기", "ctrl+x": "잘라내기", "ctrl+z": "실행 취소", "ctrl+y": "다시 실행",
+  "ctrl+a": "전체 선택", "ctrl+s": "저장", "ctrl+f": "찾기", "ctrl+w": "탭 닫기", "ctrl+t": "새 탭", "ctrl+n": "새 창",
+  "ctrl+p": "인쇄", "ctrl+r": "새로고침", "alt+f4": "창 닫기", "alt+space": "창 메뉴", "ctrl+alt+delete": "보안 화면",
+  "ctrl+shift+m": "Discord 마이크 음소거", "ctrl+shift+d": "Discord 헤드셋 음소거", "f11": "전체 화면", "f5": "새로고침",
+  "ctrl+shift+i": "개발자 도구",
+};
+// [표시, keyboard 이름(null=지정 불가), 너비]
+const K = (label, name = label.toLowerCase(), w = 1) => [label, name, w];
+const fixed = (label, w = 1, mod = null) => [label, null, w, mod];
+const GAP = (w) => ["", undefined, w];
+const KB_MAIN = [
+  [fixed("Esc"), GAP(1), K("F1"), K("F2"), K("F3"), K("F4"), GAP(0.5), K("F5"), K("F6"), K("F7"), K("F8"), GAP(0.5), K("F9"), K("F10"), K("F11"), K("F12")],
+  "spacer",
+  [K("`"), ..."1234567890".split("").map(d => K(d)), K("-"), K("="), fixed("⌫", 2)],
+  [fixed("Tab", 1.5), ..."QWERTYUIOP".split("").map(l => K(l)), K("["), K("]"), K("\\", "\\", 1.5)],
+  [fixed("Caps", 1.75), ..."ASDFGHJKL".split("").map(l => K(l)), K(";"), K("'"), fixed("Enter", 2.25)],
+  [fixed("Shift", 2.25, "shift"), ..."ZXCVBNM".split("").map(l => K(l)), K(","), K("."), K("/"), fixed("Shift", 2.75, "shift")],
+  [fixed("Ctrl", 1.5, "ctrl"), fixed("Win", 1.25, "windows"), fixed("Alt", 1.25, "alt"), K("Space", "space", 7), fixed("Alt", 1.25, "alt"), fixed("Win", 1.25, "windows"), fixed("Ctrl", 1.5, "ctrl")],
+];
+const KB_NAV = [
+  [fixed("PrtSc"), K("ScrLk", "scroll lock"), K("Pause", "pause")],
+  "spacer",
+  [K("Ins", "insert"), K("Home", "home"), K("PgUp", "page up")],
+  [K("Del", "delete"), K("End", "end"), K("PgDn", "page down")],
+  [GAP(3)],
+  [GAP(1), K("↑", "up"), GAP(1)],
+  [K("←", "left"), K("↓", "down"), K("→", "right")],
+];
+const KB_EXTRA = [Array.from({ length: 12 }, (_, i) => K("F" + (13 + i)))];
+
+let kmMod = 0;
+const comboOf = (mods, name) => [...mods, name].join("+");
+const actionByCombo = () => Object.fromEntries(Object.entries(ui.settings.hotkeys).map(([a, c]) => [c, a]));
+
+function actionShort(action) {
+  const [kind, arg] = [action.split(":")[0], action.slice(action.indexOf(":") + 1)];
+  if (action === "toggle:voice") return "🎚️ 변조";
+  if (action === "toggle:monitor") return "🎧 듣기";
+  if (action === "sound:stop_all") return "⏹ 정지";
+  if (kind === "voice") { const p = ui.presets.find(p => p.key === arg); return p ? p.icon + " " + p.name : arg; }
+  if (kind === "sound") { const s = ui.sounds.find(s => s.id === arg); return "🔊 " + (s ? s.name : "?"); }
+  return action;
+}
+
+function renderKeymap() {
+  const kb = $("#keyboard");
+  if (!kb || !ui.presets.length) return;
+  const mods = KM_MODS[kmMod];
+  const used = actionByCombo();
+  // 수정키 탭 (조합별 사용 개수 표시)
+  $("#kmMods").innerHTML = "";
+  KM_MODS.forEach((m, i) => {
+    const n = Object.values(ui.settings.hotkeys).filter(c => {
+      const parts = c.split("+");
+      return parts.slice(0, -1).join("+") === m.join("+");
+    }).length;
+    const b = document.createElement("button");
+    b.className = "chip" + (i === kmMod ? " active" : "");
+    b.innerHTML = (m.length ? m.map(x => MOD_NAMES[x]).join(" + ") : "수정키 없음") + (n ? ` <i>${n}</i>` : "");
+    b.onclick = () => { kmMod = i; renderKeymap(); };
+    $("#kmMods").append(b);
+  });
+
+  const keyEl = ([label, name, w, mod]) => {
+    const el = document.createElement("button");
+    el.className = "key";
+    el.style.setProperty("--w", w || 1);
+    if (name === undefined) { el.classList.add("gap"); return el; }
+    el.innerHTML = `<span class="kl">${esc(label)}</span>`;
+    if (name === null) {
+      el.classList.add("fixed");
+      if (mod && mods.includes(mod)) el.classList.add("modon");
+      return el;
+    }
+    const combo = comboOf(mods, name);
+    const action = used[combo];
+    const allowed = mods.length || STANDALONE_OK.test(name);
+    if (!allowed) el.classList.add("dis");
+    if (RESERVED[combo]) el.classList.add("warn");
+    if (action) {
+      el.classList.add("used");
+      // 좁은 키에는 아이콘만, 넓은 키(Space 등)에는 이름까지 (전체 이름은 마우스를 올리면 보인다)
+      const short = actionShort(action);
+      el.insertAdjacentHTML("beforeend", `<span class="ka">${esc((w || 1) > 1.5 ? short : short.split(" ")[0])}</span>`);
+    }
+    el.title = prettyCombo(combo) + (action ? " — " + actionLabel(action) : "") + (RESERVED[combo] ? " " + T("(주의: {x})", { x: T(RESERVED[combo]) }) : "");
+    el.onclick = (e) => {
+      e.stopPropagation();
+      if (!allowed) return toast("글자·숫자·방향키는 Ctrl, Alt, Shift 중 하나와 함께 써야 합니다. 위에서 수정키를 골라주세요.", true);
+      openKeyPopover(el, combo, action);
+    };
+    return el;
+  };
+  const block = (rows) => {
+    const b = document.createElement("div");
+    b.className = "kb-block";
+    for (const r of rows) {
+      const row = document.createElement("div");
+      row.className = "kb-row" + (r === "spacer" ? " spacer" : "");
+      if (r !== "spacer") r.forEach(k => row.append(keyEl(k)));
+      b.append(row);
+    }
+    return b;
+  };
+  kb.innerHTML = "";
+  const left = block(KB_MAIN);
+  const extra = block(KB_EXTRA);
+  extra.classList.add("kb-extra");
+  extra.insertAdjacentHTML("afterbegin", "<small>F13 ~ F24 (게이밍·매크로 키보드의 추가 키)</small>");
+  left.append(extra);
+  kb.append(left, block(KB_NAV));
+
+  // 지정된 단축키 목록
+  const entries = Object.entries(ui.settings.hotkeys).sort((a, b) => a[0].localeCompare(b[0]));
+  $("#hkCount").textContent = entries.length ? T("{n}개", { n: entries.length }) : "";
+  $("#hkList").innerHTML = entries.length ? "" : '<div class="note">아직 지정된 단축키가 없습니다. 위 키보드에서 키를 눌러 지정해 보세요.</div>';
+  for (const [action, combo] of entries) {
+    const it = document.createElement("div");
+    it.className = "hk-item";
+    it.innerHTML = `<span class="nm"></span><kbd>${esc(prettyCombo(combo))}</kbd><button title="해제">✕</button>`;
+    it.querySelector(".nm").textContent = actionShort(action);
+    it.querySelector("button").onclick = () => saveHotkey(action, null);
+    $("#hkList").append(it);
+  }
+}
+
+function closeKeyPopover() { document.querySelectorAll(".kpop").forEach(p => p.remove()); }
+window.addEventListener("mousedown", (e) => { if (!e.target.closest(".kpop")) closeKeyPopover(); });
+window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeKeyPopover(); });
+document.querySelector("main").addEventListener("scroll", closeKeyPopover);
+
+function openKeyPopover(keyEl, combo, current) {
+  closeKeyPopover();
+  const pop = document.createElement("div");
+  pop.className = "kpop";
+  const assign = (action) => { closeKeyPopover(); saveHotkey(action, combo); };
+  pop.innerHTML = `<div class="top"><b>${esc(prettyCombo(combo))}</b>
+      ${RESERVED[combo] ? `<div class="wn">⚠ ${esc(T("{x} 단축키와 겹칩니다", { x: T(RESERVED[combo]) }))}</div>` : ""}
+      ${current ? `<div class="cur">${esc(T("현재"))} <span>${esc(actionShort(current))}</span><button>해제</button></div>` : ""}
+    </div><div class="list"></div>`;
+  if (current) pop.querySelector(".cur button").onclick = () => { closeKeyPopover(); saveHotkey(current, null); };
+  const list = pop.querySelector(".list");
+  const group = (title, actions) => {
+    if (!actions.length) return;
+    list.insertAdjacentHTML("beforeend", `<div class="grp">${title}</div>`);
+    for (const a of actions) {
+      const b = document.createElement("button");
+      b.className = "it" + (a === current ? " on" : "");
+      const other = ui.settings.hotkeys[a];
+      b.innerHTML = `<span></span>${other && a !== current ? `<small>${esc(prettyCombo(other))}</small>` : ""}`;
+      b.querySelector("span").textContent = actionShort(a);
+      b.onclick = () => assign(a);
+      list.append(b);
+    }
+  };
+  group("기본 동작", ["toggle:voice", "toggle:monitor", "sound:stop_all"]);
+  group("목소리", ui.presets.map(p => "voice:" + p.key));
+  group("사운드보드", ui.sounds.map(s => "sound:" + s.id));
+  document.body.append(pop);
+  const r = keyEl.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let x = Math.min(r.left, innerWidth - pw - 12);
+  let y = r.bottom + 6;
+  if (y + ph > innerHeight - 12) y = Math.max(12, r.top - ph - 6);
+  pop.style.left = x + "px";
+  pop.style.top = y + "px";
+}
+
+function startCapture(action, el) {
+  stopCapture();
+  capture = { action, el };
+  el.classList.add("capturing");
+  el.textContent = "키 조합을 누르세요…";
+  api().pause_hotkeys(true);
+}
+
+function stopCapture() {
+  if (!capture) return;
+  const el = capture.el;
+  capture = null;
+  api().pause_hotkeys(false);
+  paintHotkey(el);
+}
+
+window.addEventListener("keydown", (e) => {
+  if (!capture) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const mods = [];
+  if (e.ctrlKey) mods.push("ctrl");
+  if (e.altKey) mods.push("alt");
+  if (e.shiftKey) mods.push("shift");
+  if (e.metaKey) mods.push("windows");
+  if (e.code === "Escape" && !mods.length) return stopCapture();
+  if ((e.code === "Backspace" || e.code === "Delete") && !mods.length) {
+    const a = capture.action; stopCapture(); return saveHotkey(a, null);
+  }
+  if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) {
+    capture.el.textContent = mods.map(m => MOD_NAMES[m]).join(" + ") + " + …";
+    return;
+  }
+  const name = keyName(e.code);
+  if (!name) return toast("이 키는 단축키로 쓸 수 없습니다. 다른 키를 눌러주세요.", true);
+  if (!mods.length && !STANDALONE_OK.test(name))
+    return toast("글자·숫자 키는 Ctrl, Alt, Shift 중 하나와 함께 눌러주세요.", true);
+  const a = capture.action;
+  stopCapture();
+  saveHotkey(a, [...mods, name].join("+"));
+}, true);
+window.addEventListener("mousedown", (e) => { if (capture && !capture.el.contains(e.target)) stopCapture(); }, true);
+window.addEventListener("blur", stopCapture);
+
+async function saveHotkey(action, combo) {
+  const r = await api().set_hotkey(action, combo);
+  ui.settings.hotkeys = r.hotkeys;
+  if (r.moved_from) toast(T("{a}에 있던 단축키를 {b}(으)로 옮겼습니다.", { a: actionLabel(r.moved_from), b: actionLabel(action) }));
+  refreshHotkeys();
+}
+
+function mountHotkeys(root = document) {
+  root.querySelectorAll("[data-hotkey]").forEach(slot => { slot.innerHTML = ""; slot.append(hotkeyButton(slot.dataset.hotkey)); });
+}
+mountHotkeys();
+
+// ---------- 목소리 ----------
+function renderChips() {
+  $("#chips").innerHTML = "";
+  for (const c of CATEGORIES) {
+    const b = document.createElement("button");
+    b.className = "chip" + (c === ui.category ? " active" : "");
+    b.textContent = c;
+    b.onclick = () => { ui.category = c; renderChips(); renderVoices(); };
+    $("#chips").append(b);
+  }
+}
+
+function groupedRender(container, items, isFav, makeItem, emptyHtml, extraTail) {
+  container.innerHTML = "";
+  if (!items.length && !extraTail) { container.innerHTML = emptyHtml; return; }
+  const onTop = ui.settings.favorites_on_top;
+  const favs = onTop ? items.filter(isFav) : [];
+  const rest = onTop ? items.filter(i => !isFav(i)) : items;
+  const addGroup = (title, list, cls, tail) => {
+    const g = document.createElement("div");
+    g.className = "group";
+    if (title) g.innerHTML = `<div class="group-title ${cls}">${title} <span class="n">${list.length}</span></div>`;
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    list.forEach(i => grid.append(makeItem(i)));
+    if (tail) grid.append(tail);
+    if (!list.length && !tail) grid.innerHTML = emptyHtml;
+    g.append(grid);
+    container.append(g);
+  };
+  if (favs.length) addGroup("★ 즐겨찾기", favs, "fav");
+  if (rest.length || extraTail || !favs.length) addGroup(favs.length ? "전체" : "", rest, "", extraTail);
+}
+
+function renderVoices() {
+  const q = ui.voiceQuery.trim().toLowerCase();
+  const list = ui.presets.filter(p => (ui.category === "전체" || p.category === ui.category) &&
+    (!q || (p.name + p.description).toLowerCase().includes(q)));
+  let addTile = null;
+  if (!q && (ui.category === "전체" || ui.category === "내 목소리")) {
+    addTile = document.createElement("button");
+    addTile.className = "card add";
+    addTile.innerHTML = "<b>＋</b><span>새 목소리 만들기<br><small>효과를 골라 직접 조합</small></span>";
+    addTile.onclick = () => createCustom(null);
+  }
+  groupedRender($("#voiceList"), list, p => ui.settings.favorites.includes(p.key), voiceCard,
+    '<div class="empty">검색 결과가 없습니다</div>', addTile);
+  markSelected();
+}
+
+function voiceCard(p) {
+  const card = document.createElement("button");
+  card.className = "card";
+  card.dataset.key = p.key;
+  card.style.setProperty("--c", p.color + "cc");
+  const combo = ui.settings.hotkeys["voice:" + p.key];
+  const fav = ui.settings.favorites.includes(p.key);
+  card.innerHTML = `
+    ${combo ? `<span class="badge-key">${esc(prettyCombo(combo))}</span>` : ""}
+    <span class="live">● 사용 중</span>
+    <span class="star ${fav ? "on" : ""}" title="즐겨찾기">${STAR}</span>
+    <span class="icon">${p.icon}</span>
+    <span class="name">${esc(p.name)}</span>
+    <span class="desc">${esc(p.description)}</span>
+    ${p.custom ? '<span class="mine">내 목소리</span>' : ""}`;
+  card.onclick = (e) => {
+    if (e.target.closest(".star")) return toggleVoiceFavorite(p.key);
+    ui.settings.preset = p.key; ui.settings.voice_on = true;
+    api().select_preset(p.key);
+    markSelected();
+  };
+  return card;
+}
+
+async function toggleVoiceFavorite(key) {
+  ui.settings.favorites = await api().toggle_favorite(key);
+  renderVoices();
+}
+
+$("#voiceSearch").addEventListener("input", (e) => { ui.voiceQuery = e.target.value; renderVoices(); });
+
+function markSelected() {
+  const s = ui.settings;
+  renderVoicePanel();
+  document.querySelectorAll(".card[data-key]").forEach(c => {
+    c.classList.toggle("selected", c.dataset.key === s.preset);
+    c.classList.toggle("off", !s.voice_on);
+  });
+  const p = ui.presets.find(p => p.key === s.preset);
+  if (p) {
+    $("#nowBadge").textContent = s.voice_on ? p.icon : "🎙️";
+    $("#nowBadge").style.setProperty("--c", s.voice_on ? p.color : "#475569");
+    $("#nowName").textContent = s.voice_on ? p.name : T("원본 ({name} 꺼짐)", { name: p.name });
+  }
+  $("#tg-voice").checked = !!s.voice_on;
+  $("#tg-monitor").checked = !!s.monitor_on;
+}
+
+// ---------- 목소리 세부 설정 패널 ----------
+function formatValue(v, unit) {
+  const sign = v > 0 ? "+" : "";
+  switch (unit) {
+    case "%": return Math.round(v * 100) + "%";
+    case "반음": return sign + (+v.toFixed(1)) + " " + T("반음");
+    case "dB": return sign + v.toFixed(1) + " dB";
+    case "Hz": return v >= 1000 ? (v / 1000).toFixed(1) + " kHz" : Math.round(v) + " Hz";
+    case "초": return T("{v}초", { v: v.toFixed(2) });
+    case "비트": return T("{v}비트", { v: Math.round(v) });
+    case ":1": return (+v.toFixed(1)) + " : 1";
+    default: return String(+v.toFixed(2));
+  }
+}
+
+function sliderRow(p, q) {
+  const row = document.createElement("div");
+  row.className = "param";
+  row.innerHTML = `<div class="pl"><b></b><span></span></div>
+    <input type="range" min="${q.min}" max="${q.max}" step="${q.step}">`;
+  row.querySelector("b").textContent = q.label;
+  const slider = row.querySelector("input"), label = row.querySelector("span");
+  const show = (v) => {
+    label.textContent = formatValue(v, q.unit);
+    label.classList.toggle("changed", Math.abs(v - q.default) > q.step / 2);
+    slider.style.setProperty("--p", ((v - q.min) / (q.max - q.min) * 100) + "%");
+  };
+  const set = (v) => { p.values[q.key] = v; slider.value = v; show(v); api().set_param(p.key, q.key, v); };
+  slider.value = p.values[q.key];
+  show(p.values[q.key]);
+  slider.addEventListener("input", () => set(+slider.value));
+  slider.addEventListener("dblclick", () => set(q.default));
+  return row;
+}
+
+let panelKey = null;
+function renderVoicePanel() {
+  const p = ui.presets.find(p => p.key === ui.settings.preset);
+  if (!p) return;
+  $("#pvOff").classList.toggle("show", !ui.settings.voice_on);
+  const fav = ui.settings.favorites.includes(p.key);
+  $("#pvStar").className = "star" + (fav ? " on" : "");
+  $("#pvStar").innerHTML = STAR;
+  if (panelKey === p.key) return;  // 같은 목소리면 슬라이더를 다시 그리지 않는다 (드래그 중 끊김 방지)
+  panelKey = p.key;
+
+  // 머리: 내 목소리는 이름·아이콘·색을 바꿀 수 있다
+  $("#pvIcon").textContent = p.icon;
+  $("#pvIcon").style.setProperty("--c", p.color);
+  $("#pvIcon").classList.toggle("editable", p.custom);
+  $("#pvIcon").title = p.custom ? "아이콘 바꾸기" : "";
+  $("#pvName").style.display = p.custom ? "none" : "";
+  $("#pvNameInput").style.display = p.custom ? "" : "none";
+  $("#pvColors").style.display = p.custom ? "flex" : "none";
+  $("#pvName").textContent = p.name;
+  $("#pvNameInput").value = p.name;
+  $("#pvDesc").textContent = p.description;
+  if (p.custom) {
+    $("#pvColors").innerHTML = "";
+    for (const col of COLORS) {
+      const b = document.createElement("button");
+      b.style.background = col;
+      b.className = col === p.color ? "on" : "";
+      b.onclick = () => updateCustom(p.key, "color", col);
+      $("#pvColors").append(b);
+    }
+  }
+  $("#pvHotkey").innerHTML = "";
+  $("#pvHotkey").append(hotkeyButton("voice:" + p.key));
+
+  // 슬라이더: 기본 목소리는 핵심만, 내 목소리는 모듈별 카드로 전부
+  const box = $("#pvParams");
+  box.innerHTML = "";
+  $("#pvParamsTitle").textContent = p.custom ? "효과" : "세부 설정";
+  if (!p.custom) {
+    p.params.forEach(q => box.append(sliderRow(p, q)));
+  } else {
+    for (const mkey of p.modules) {
+      const mod = ui.modules.find(m => m.key === mkey);
+      const card = document.createElement("div");
+      card.className = "mod-card";
+      card.innerHTML = `<div class="mod-head"><span>${mod.icon}</span><span></span><small></small><button title="효과 빼기">✕</button></div>`;
+      card.querySelectorAll(".mod-head span")[1].textContent = mod.label;
+      card.querySelector("small").textContent = mod.description;
+      card.querySelector("button").onclick = () => setModule(p.key, mkey, false);
+      p.params.filter(q => q.module === mkey).forEach(q => card.append(sliderRow(p, q)));
+      box.append(card);
+    }
+    if (!p.modules.length) box.insertAdjacentHTML("beforeend", '<div class="note">아래에서 효과를 추가해 보세요.</div>');
+    const vol = p.params.find(q => q.key === "volume");
+    if (vol) box.append(sliderRow(p, vol));
+    const rest = ui.modules.filter(m => !p.modules.includes(m.key));
+    if (rest.length) {
+      const add = document.createElement("div");
+      add.className = "fx-add";
+      add.innerHTML = "<b>＋ 효과 추가</b><div class='chips-row'></div>";
+      for (const m of rest) {
+        const b = document.createElement("button");
+        b.textContent = `${m.icon} ${m.label}`;
+        b.title = m.description;
+        b.onclick = () => setModule(p.key, m.key, true);
+        add.querySelector(".chips-row").append(b);
+      }
+      box.append(add);
+    }
+  }
+
+  // 하단 버튼
+  const actions = $("#pvActions");
+  actions.innerHTML = "";
+  if (p.custom) {
+    actions.innerHTML = '<button class="btn" id="pvDup">복제</button><button class="btn danger" id="pvDel">🗑 삭제</button>';
+    $("#pvDup").onclick = () => createCustom(p.key);
+    $("#pvDel").onclick = () => deleteVoice(p.key, $("#pvDel"));
+  } else if (p.key !== "clean") {
+    actions.innerHTML = '<button class="btn primary" id="pvMake" style="flex:1">＋ 이 목소리로 내 목소리 만들기</button>';
+    $("#pvMake").onclick = () => createCustom(p.key);
+  }
+  $("#pvTip").innerHTML = p.custom
+    ? "효과는 위에서부터 차례로 적용됩니다. 값은 통화 중에도 바로 반영되고 자동 저장됩니다.<br>슬라이더를 더블클릭하면 그 값만 기본값으로 돌아갑니다."
+    : "슬라이더를 움직이면 통화 중에도 바로 적용되고 자동 저장됩니다.<br>모든 효과를 자세히 바꾸려면 '내 목소리 만들기'로 복사하세요.";
+}
+
+async function createCustom(baseKey) {
+  const r = await api().create_custom(baseKey);
+  ui.presets = r.presets;
+  ui.settings.preset = r.key;
+  ui.settings.voice_on = true;
+  panelKey = null;
+  if (ui.category !== "전체" && ui.category !== "내 목소리") { ui.category = "내 목소리"; renderChips(); }
+  renderVoices();
+  toast(baseKey ? "복사해서 내 목소리를 만들었습니다. 오른쪽에서 자유롭게 바꿔보세요." : "새 목소리를 만들었습니다. 오른쪽에서 효과를 추가해 보세요.");
+  setTimeout(() => document.querySelector(`.card[data-key="${r.key}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 50);
+}
+
+async function setModule(key, module, enabled) {
+  ui.presets = await api().set_custom_module(key, module, enabled);
+  panelKey = null;
+  renderVoicePanel();
+}
+
+async function updateCustom(key, field, value) {
+  ui.presets = await api().update_custom(key, field, value);
+  if (field !== "name") panelKey = null;  // 이름 입력 중에는 패널을 다시 그리지 않는다
+  renderVoices();
+}
+
+const commitVoiceName = () => {
+  const p = ui.presets.find(p => p.key === ui.settings.preset);
+  const v = $("#pvNameInput").value.trim();
+  if (p && p.custom && v && v !== p.name) updateCustom(p.key, "name", v);
+};
+$("#pvNameInput").addEventListener("change", commitVoiceName);
+$("#pvNameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); });
+
+$("#pvIcon").onclick = () => {
+  const p = ui.presets.find(p => p.key === ui.settings.preset);
+  if (!p || !p.custom) return;
+  closeKeyPopover();
+  const pop = document.createElement("div");
+  pop.className = "kpop";
+  pop.innerHTML = '<div class="top"><b>아이콘 고르기</b></div><div class="icon-grid"></div>';
+  for (const ic of ICONS) {
+    const b = document.createElement("button");
+    b.textContent = ic;
+    b.onclick = () => { closeKeyPopover(); updateCustom(p.key, "icon", ic); };
+    pop.querySelector(".icon-grid").append(b);
+  }
+  document.body.append(pop);
+  const r = $("#pvIcon").getBoundingClientRect();
+  pop.style.left = Math.min(r.left - 90, innerWidth - pop.offsetWidth - 12) + "px";
+  pop.style.top = (r.bottom + 8) + "px";
+};
+
+$("#pvStar").onclick = () => toggleVoiceFavorite(ui.settings.preset);
+$("#pvReset").onclick = async () => {
+  const p = ui.presets.find(p => p.key === ui.settings.preset);
+  if (!p) return;
+  p.values = await api().reset_params(p.key);
+  panelKey = null;
+  renderVoicePanel();
+};
+// ---------- 사운드보드 ----------
+function soundColor(id) {
+  let h = 0;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return SOUND_COLORS[h % SOUND_COLORS.length];
+}
+const fmtDur = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
+
+function renderSounds() {
+  $("#soundCount").textContent = ui.sounds.length;
+  const container = $("#soundList");
+  if (!ui.sounds.length) {
+    container.innerHTML = `<div class="dropzone"><b>아직 사운드가 없습니다</b>
+      오디오 파일을 이 창으로 끌어다 놓거나 아래 버튼으로 추가하세요<br>(wav · mp3 · flac · ogg, 3분 이하)
+      <br><button class="btn primary" onclick="addSounds()">＋ 사운드 추가</button></div>`;
+    renderSoundPanel();
+    return;
+  }
+  const q = ui.soundQuery.trim().toLowerCase();
+  const list = ui.sounds.filter(s => !q || s.name.toLowerCase().includes(q));
+  const addTile = document.createElement("button");
+  addTile.className = "pad add";
+  addTile.innerHTML = "<b>＋</b><span>파일 추가<br><small>또는 끌어다 놓기</small></span>";
+  addTile.onclick = addSounds;
+  groupedRender(container, list, s => s.favorite, soundPad, '<div class="empty">검색 결과가 없습니다</div>', q ? null : addTile);
+  updatePlaying();
+  renderSoundPanel();
+}
+
+function soundPad(s) {
+  const pad = document.createElement("button");
+  pad.className = "pad" + (s.id === ui.selectedSound ? " selected" : "");
+  pad.dataset.id = s.id;
+  pad.style.setProperty("--c", soundColor(s.id));
+  const combo = ui.settings.hotkeys["sound:" + s.id];
+  pad.innerHTML = `
+    ${combo ? `<span class="badge-key">${esc(prettyCombo(combo))}</span>` : ""}
+    <span class="star ${s.favorite ? "on" : ""}" title="즐겨찾기">${STAR}</span>
+    <span class="play">${PLAY}</span>
+    <span class="name">${esc(s.name)}</span>
+    <span class="meta">${fmtDur(s.duration || 0)}</span>
+    <span class="prog"></span>`;
+  pad.onclick = async (e) => {
+    if (e.target.closest(".star")) return updateSound(s.id, "favorite", !s.favorite, true);
+    ui.selectedSound = s.id;
+    document.querySelectorAll(".pad[data-id]").forEach(p => p.classList.toggle("selected", p.dataset.id === s.id));
+    renderSoundPanel();
+    const err = await api().play_sound(s.id);
+    if (err) toast(err, true);
+  };
+  return pad;
+}
+
+function updatePlaying() {
+  document.querySelectorAll(".pad[data-id]").forEach(p => {
+    const prog = ui.playing[p.dataset.id];
+    const on = prog !== undefined;
+    if (p.classList.contains("playing") !== on) {
+      p.classList.toggle("playing", on);
+      p.querySelector(".play").innerHTML = on ? STOP : PLAY;
+    }
+    p.querySelector(".prog").style.width = on ? (prog * 100) + "%" : "0";
+  });
+  const playing = ui.selectedSound && ui.playing[ui.selectedSound] !== undefined;
+  $("#psPlay").textContent = playing ? "■ 정지" : "▶ 재생";
+}
+
+async function addSounds() {
+  const r = await api().add_sounds_dialog();
+  onSoundsAdded(r);
+}
+
+function onSoundsAdded(r) {
+  ui.sounds = r.sounds;
+  if (r.added.length) {
+    ui.selectedSound = r.added[r.added.length - 1];
+    toast(T("사운드 {n}개를 추가했습니다.", { n: r.added.length }));
+  }
+  r.errors.forEach(e => toast(e, true));
+  renderSounds();
+}
+window.onSoundsDropped = (r) => {
+  $("#dropOverlay").classList.remove("show");
+  if (ui.page !== "soundboard") document.querySelector('.nav[data-page="soundboard"]').click();
+  onSoundsAdded(r);
+};
+
+async function updateSound(id, field, value, rerender = false) {
+  const entry = await api().update_sound(id, field, value);
+  if (!entry) return;
+  const i = ui.sounds.findIndex(s => s.id === id);
+  if (i >= 0) ui.sounds[i] = entry;
+  if (rerender) renderSounds();
+}
+
+function renderSoundPanel() {
+  const s = ui.sounds.find(s => s.id === ui.selectedSound);
+  $("#psEmpty").style.display = s ? "none" : "";
+  $("#psBody").style.display = s ? "flex" : "none";
+  if (!s) return;
+  $("#psIcon").style.setProperty("--c", soundColor(s.id));
+  $("#psStar").className = "star" + (s.favorite ? " on" : "");
+  $("#psStar").innerHTML = STAR;
+  if (document.activeElement !== $("#psName")) $("#psName").value = s.name;
+  $("#psMeta").textContent = T("길이 {d}", { d: fmtDur(s.duration || 0) });
+  $("#psVol").value = s.volume;
+  $("#psVolVal").textContent = Math.round(s.volume * 100) + "%";
+  $("#psVol").style.setProperty("--p", (s.volume / 2 * 100) + "%");
+  const slot = $("#psHotkey");
+  if (!slot.firstChild || slot.firstChild.dataset.action !== "sound:" + s.id) {
+    slot.innerHTML = "";
+    slot.append(hotkeyButton("sound:" + s.id));
+  }
+}
+$("#psVol").parentElement.classList.add("param");
+$("#psVol").addEventListener("input", (e) => {
+  const v = +e.target.value;
+  const s = ui.sounds.find(s => s.id === ui.selectedSound);
+  if (!s) return;
+  s.volume = v;
+  $("#psVolVal").textContent = Math.round(v * 100) + "%";
+  e.target.style.setProperty("--p", (v / 2 * 100) + "%");
+  api().update_sound(s.id, "volume", v);
+});
+const commitName = () => {
+  const s = ui.sounds.find(s => s.id === ui.selectedSound);
+  const v = $("#psName").value.trim();
+  if (s && v && v !== s.name) updateSound(s.id, "name", v, true);
+};
+$("#psName").addEventListener("change", commitName);
+$("#psName").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); });
+$("#psStar").onclick = () => { const s = ui.sounds.find(s => s.id === ui.selectedSound); if (s) updateSound(s.id, "favorite", !s.favorite, true); };
+$("#psPlay").onclick = async () => { const err = await api().play_sound(ui.selectedSound); if (err) toast(err, true); };
+$("#psDelete").onclick = () => deleteSound(ui.selectedSound, $("#psDelete"));
+
+// 삭제: 실수 방지를 위해 같은 버튼을 한 번 더 눌러야 지운다
+function armDelete(btn) {
+  if (btn.classList.contains("confirm")) return true;
+  btn.classList.add("confirm");
+  btn.textContent = "한 번 더 누르면 삭제";
+  setTimeout(() => { if (btn.isConnected) { btn.classList.remove("confirm"); btn.textContent = "🗑 삭제"; } }, 3000);
+  return false;
+}
+
+async function deleteVoice(key, btn) {
+  const p = ui.presets.find(p => p.key === key);
+  if (!p || !p.custom || !armDelete(btn)) return;
+  const r = await api().delete_custom(key);
+  ui.presets = r.presets;
+  panelKey = null;
+  applyState(r);
+  renderVoices();
+  toast(T("'{name}'을(를) 삭제했습니다.", { name: p.name }));
+}
+
+async function deleteSound(id, btn) {
+  const s = ui.sounds.find(s => s.id === id);
+  if (!s || !armDelete(btn)) return;
+  const r = await api().remove_sound(id);
+  ui.sounds = r.sounds;
+  ui.settings.hotkeys = r.hotkeys;
+  ui.selectedSound = null;
+  renderSounds();
+  toast(T("'{name}'을(를) 삭제했습니다.", { name: s.name }) + (s.default ? " " + T("기본 사운드는 '기본 사운드 복원'으로 되살릴 수 있습니다.") : ""));
+}
+$("#addSoundBtn").onclick = addSounds;
+$("#restoreDefaultsBtn").onclick = async () => {
+  const r = await api().restore_default_sounds();
+  ui.sounds = r.sounds;
+  toast(r.added ? T("기본 사운드 {n}개를 다시 추가했습니다.", { n: r.added }) : T("기본 사운드가 모두 있습니다."));
+  renderSounds();
+};
+$("#stopAllBtn").onclick = () => api().stop_all_sounds();
+$("#soundSearch").addEventListener("input", (e) => { ui.soundQuery = e.target.value; renderSounds(); });
+
+// 파일 끌어다 놓기: 실제 처리는 Python이 하고, 화면은 안내 오버레이만 띄운다
+let dragDepth = 0;
+const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes("Files");
+window.addEventListener("dragenter", (e) => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; $("#dropOverlay").classList.add("show"); });
+window.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; $("#dropOverlay").classList.remove("show"); } });
+window.addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); });
+window.addEventListener("drop", (e) => { e.preventDefault(); dragDepth = 0; $("#dropOverlay").classList.remove("show"); });
+
+// ---------- 하단 토글 ----------
+$("#tg-voice").addEventListener("change", (e) => { ui.settings.voice_on = e.target.checked; api().set_voice(e.target.checked); markSelected(); });
+$("#tg-monitor").addEventListener("change", (e) => { ui.settings.monitor_on = e.target.checked; api().set_monitor(e.target.checked); });
+
+// ---------- 상태 ----------
+function applyState(d) {
+  Object.assign(ui.settings, d.settings);
+  ui.running = d.running;
+  ui.cable = d.cable;
+  ui.error = d.error;
+  const s = ui.settings;
+  for (const k of ["auto_cable", "auto_default", "gate", "noise_suppression", "favorites_on_top", "sound_monitor"]) $("#opt-" + k).checked = !!s[k];
+  for (const k of ["input_gain", "output_volume", "monitor_volume", "soundboard_volume", "ns_strength"]) { $("#opt-" + k).value = s[k]; showVal(k); }
+  for (const k of ["input", "output", "monitor"]) $("#sel-" + k).value = s[k] || "";
+  $("#micName").textContent = s.input || "마이크 없음";
+  renderStatus();
+  refreshHotkeys();
+  markSelected();
+}
+
+function renderStatus() {
+  $("#statusDot").className = "dot " + (ui.running ? "on" : (ui.error ? "bad" : ""));
+  $("#statusText").textContent = ui.running ? "켜짐 · 가상 마이크 출력 중" : "꺼짐";
+  $("#powerBtn").classList.toggle("on", !!ui.running);
+  $("#powerText").textContent = ui.running ? "끄기" : "켜기";
+
+  const banner = $("#banner"), act = $("#bannerAction");
+  let msg = null, action = null, isError = false;
+  if (ui.cable === "disabled") {
+    msg = ui.settings.auto_cable ? T("가상 케이블(VB-CABLE)이 꺼져 있습니다. 켜기를 누르면 자동으로 켭니다.")
+      : T("가상 케이블(VB-CABLE)이 Windows에서 <b>사용 안 함</b> 상태입니다. 설정에서 <b>VB-CABLE 자동 켜기</b>를 켜거나 소리 설정에서 직접 켜세요.");
+    action = ["소리 설정 열기", () => api().open_sound_settings()];
+  } else if (ui.cable === "missing") {
+    msg = T("VoiceFX를 Discord에서 쓰려면 무료 가상 오디오 장치 <b>VB-CABLE</b>이 필요합니다. 다운로드 페이지에서 받아 압축을 풀고 <b>VBCABLE_Setup_x64.exe</b>를 <b>관리자 권한으로 실행</b> → Install Driver → 재부팅 후 다시 시도하세요.");
+    action = ["VB-CABLE 다운로드", () => api().open_cable_download()];
+  } else if (ui.error) {
+    msg = esc(ui.error); isError = true;
+  }
+  banner.classList.toggle("show", !!msg);
+  banner.classList.toggle("error", isError);
+  $("#bannerMsg").innerHTML = msg || "";
+  act.style.display = action ? "" : "none";
+  if (action) { act.textContent = action[0]; act.onclick = action[1]; }
+}
+
+$("#bannerRetry").onclick = async () => { const d = await api().refresh_devices(); fillDevices(d); applyState(d); };
+$("#refreshBtn").onclick = $("#bannerRetry").onclick;
+$("#powerBtn").onclick = async () => applyState(await api().toggle_power());
+
+async function poll() {
+  const p = await api().poll();
+  $("#meterIn").style.width = Math.min(100, Math.sqrt(p.level_in) * 220) + "%";
+  const s = ui.settings;
+  if (p.preset !== s.preset || p.voice_on !== s.voice_on || p.monitor_on !== s.monitor_on) {
+    Object.assign(s, { preset: p.preset, voice_on: p.voice_on, monitor_on: p.monitor_on });
+    markSelected();  // 단축키로 바뀐 경우
+  }
+  ui.playing = p.playing;
+  updatePlaying();
+  if (p.running !== ui.running || p.error !== ui.error) {
+    ui.running = p.running; ui.error = p.error; renderStatus();
+  }
+}
+
+// ---------- 설정 ----------
+function fillDevices(d) {
+  const fill = (sel, names) => { sel.innerHTML = names.map(n => `<option>${esc(n)}</option>`).join(""); };
+  fill($("#sel-input"), d.inputs);
+  fill($("#sel-output"), d.outputs);
+  fill($("#sel-monitor"), d.outputs);
+}
+
+for (const k of ["input", "output", "monitor"])
+  $("#sel-" + k).addEventListener("change", async (e) => applyState(await api().set_option(k, e.target.value)));
+for (const k of ["auto_cable", "auto_default", "gate", "noise_suppression", "sound_monitor"])
+  $("#opt-" + k).addEventListener("change", async (e) => applyState(await api().set_option(k, e.target.checked)));
+$("#opt-favorites_on_top").addEventListener("change", async (e) => {
+  applyState(await api().set_option("favorites_on_top", e.target.checked));
+  renderVoices(); renderSounds();
+});
+for (const k of ["input_gain", "output_volume", "monitor_volume", "soundboard_volume", "ns_strength"]) {
+  $("#opt-" + k).addEventListener("input", (e) => { ui.settings[k] = +e.target.value; showVal(k); api().set_option(k, +e.target.value); });
+}
+function showVal(k) { $(`.val[data-for=${k}]`).textContent = Math.round(ui.settings[k] * 100) + "%"; }
+</script>
+</body>
+</html>

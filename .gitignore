@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+build/
+dist/
+out/
+tools/.freesound_cache/
+*.log
+.venv/
+.vscode/
+.idea/
+dist-test/

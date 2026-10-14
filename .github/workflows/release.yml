@@ -1,0 +1,64 @@
+# 태그(v0.1.0 등)를 올리면 Windows에서 빌드해 GitHub 릴리스에 설치 프로그램과 포터블 zip을 올린다.
+#   git tag v0.1.0 && git push origin v0.1.0
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: 의존성 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: 번역 누락 검사
+        run: python tools/i18n_check.py
+        env:
+          PYTHONIOENCODING: utf-8
+
+      - name: 태그와 앱 버전 확인
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart("v")
+          $ver = (Select-String -Path voicefx\__init__.py -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
+          if ($tag -ne $ver) { throw "태그($tag)와 voicefx/__init__.py 버전($ver)이 다릅니다" }
+
+      - name: Inno Setup 설치
+        run: choco install innosetup -y --no-progress
+
+      - name: 빌드
+        shell: pwsh
+        run: ./build.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VoiceFX
+          path: |
+            dist/VoiceFX-Setup-*.exe
+            dist/VoiceFX-*-portable.zip
+
+      - name: 릴리스에 올리기
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            dist/VoiceFX-Setup-*.exe
+            dist/VoiceFX-*-portable.zip
